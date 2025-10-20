@@ -19,20 +19,12 @@ This interface demonstrates how users interact with the system.
 
 ### 🖼️ Project UI Snapshots
 
-![Cardiovascular Disease Prediction Project Interface](figures/interface.png)  
-![Cardiovascular Disease Prediction Project Interface](figures/interface2.png)
+![Cardiovascular Disease Prediction Project Interface](images/interface1.png)  
+![Cardiovascular Disease Prediction Project Interface](images/interface2.png)
 
 ---
 
-## ⚙️ 2. Use Case Diagram
-
-The following diagram illustrates how users interact with the system.
-
-![Use Case Diagram](figures/Use_Case_Diagram.png)
-
----
-
-## 🔁 3. Project Implementation Workflow
+## 🔁 2. Project Implementation Workflow
 
 The overall workflow of the project involves the following stages:
 
@@ -46,7 +38,7 @@ The overall workflow of the project involves the following stages:
 
 ---
 
-## 🎯 4. Research Objectives
+## 🎯 3. Research Objectives
 
 This research focuses on two fundamental questions related to cardiovascular disease (CVD) prediction.
 
@@ -91,7 +83,7 @@ Feature-importance results guide clinicians toward high-impact diagnostic variab
 
 ---
 
-## 📂 5. Project Structure
+## 📂 4. Project Structure
 
 ```
 cardiovascular_diseases_prediction/
@@ -115,7 +107,7 @@ cardiovascular_diseases_prediction/
 
 ---
 
-## 🧠 6. Model Overview
+## 🧠 5. Model Overview
 
 ### 🧾 **ANN – Tabular Data**
 - Input: 13 clinical features (age, cholesterol, BP, etc.)  
@@ -131,7 +123,7 @@ cardiovascular_diseases_prediction/
 
 ---
 
-## 🧰 7. Tech Stack
+## 🧰 6. Tech Stack
 
 | Category | Tools & Libraries |
 |-----------|------------------|
@@ -147,7 +139,7 @@ cardiovascular_diseases_prediction/
 
 ---
 
-## 🧭 8. Environment Setup & Dependencies
+## 🧭 7. Environment Setup & Dependencies
 
 ### Using **uv** (recommended)
 ```bash
@@ -172,7 +164,7 @@ conda activate cvd_env
 
 ---
 
-## 🚀 9. Deployment
+## 🚀 8. Deployment
 
 To deploy this project locally, follow these steps:
 
@@ -198,7 +190,7 @@ To deploy this project locally, follow these steps:
 
 ---
 
-## 📊 10. Evaluation Metrics & Results
+## 📊 9. Evaluation Metrics & Results
 
 - **Accuracy:** High overall predictive performance across both modalities  
 - **Precision & Recall:** Balanced recall for early disease detection  
@@ -207,7 +199,7 @@ To deploy this project locally, follow these steps:
 
 ---
 
-## 👩‍💻 12. Author
+## 👩‍💻 10. Author
 
 **Rutika Avinash Kadam**  
 Graduate Research Assistant – Stony Brook Medicine  
