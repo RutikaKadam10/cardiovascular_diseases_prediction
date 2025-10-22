@@ -1,35 +1,37 @@
-# Use Python 3.12 to match your project
+# ---------- Base ----------
 FROM python:3.12-slim
 
-# Prevent Python from writing .pyc files & buffering stdout
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PORT=7860
 
-# Install system packages (glibc locales, build tools if needed)
+# System deps that TF/PIL/Streamlit commonly need
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    libgl1 \
-    && rm -rf /var/lib/apt/lists/*
+    libglib2.0-0 libgl1 libgomp1 build-essential curl \
+  && rm -rf /var/lib/apt/lists/*
 
-# Workdir inside the container
+# ---------- Workdir ----------
 WORKDIR /app
 
-# Copy only dependency files first (better layer caching)
+# Copy dependency manifests first (better layer caching)
 COPY requirements.txt /app/requirements.txt
+COPY uv.lock pyproject.toml /app/  # ok if they don’t exist in Space; won’t hurt
 
-# Install Python dependencies
-# If you use TensorFlow on CPU under Python 3.12, pin 2.16+ in requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+# Install uv and then resolve deps into system environment
+RUN pip install --upgrade pip && pip install --no-cache-dir uv && \
+    uv pip install --system -r /app/requirements.txt
 
-# Copy app code and models
-COPY . /app
+# Copy app code & models
+COPY app.py /app/app.py
+COPY saved_models /app/saved_models
 
-# Streamlit needs to run on the port HF provides ($PORT) and bind 0.0.0.0
-ENV STREAMLIT_SERVER_HEADLESS=true \
-    STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+# Optional: Streamlit config
+COPY .streamlit /app/.streamlit
 
-# Expose default local port (HF Spaces will set $PORT env)
 EXPOSE 7860
 
-# Start Streamlit (use the PORT env if present, fall back to 7860 locally)
-CMD ["bash", "-lc", "streamlit run app.py --server.port=${PORT:-7860} --server.address=0.0.0.0"]
+# Optional healthcheck
+HEALTHCHECK CMD curl --fail http://localhost:${PORT}/_stcore/health || exit 1
+
+# Run Streamlit on the port provided by Spaces
+CMD ["bash", "-lc", "streamlit run app.py --server.address=0.0.0.0 --server.port=$PORT"]
