@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+logs/
+.streamlit_app.log
+checkpoints/
+dataset/
+evaluation/
+images/
+Code/
+notebooks/
+visualizations/
+uv.lock
+.DS_Store
