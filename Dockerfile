@@ -12,21 +12,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # ---------- Workdir ----------
 WORKDIR /app
-
+COPY . /app/
 # Copy dependency manifests first (better layer caching)
-COPY requirements.txt /app/requirements.txt
-COPY uv.lock pyproject.toml /app/  
+ 
 
 # Install uv and then resolve deps into system environment
 RUN pip install --upgrade pip && pip install --no-cache-dir uv && \
     uv pip install --system -r /app/requirements.txt
-
-# Copy app code & models
-COPY app.py /app/app.py
-COPY saved_models /app/saved_models
-
-# Optional: Streamlit config
-COPY .streamlit /app/.streamlit
 
 EXPOSE 7860
 
