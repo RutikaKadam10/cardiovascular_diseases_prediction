@@ -32,7 +32,7 @@ DEBUG_IMG = True
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler(), logging.FileHandler('streamlit_app.log')]
+    handlers=[logging.StreamHandler()]
 )
 logger = logging.getLogger('CardiovascularPredictionApp')
 
