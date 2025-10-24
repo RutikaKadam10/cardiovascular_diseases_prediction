@@ -15,7 +15,7 @@ WORKDIR /app
 
 # Copy dependency manifests first (better layer caching)
 COPY requirements.txt /app/requirements.txt
-COPY uv.lock pyproject.toml /app/  # ok if they don’t exist in Space; won’t hurt
+COPY uv.lock pyproject.toml /app/  
 
 # Install uv and then resolve deps into system environment
 RUN pip install --upgrade pip && pip install --no-cache-dir uv && \
