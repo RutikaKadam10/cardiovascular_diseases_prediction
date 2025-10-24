@@ -21,10 +21,11 @@ from streamlit_option_menu import option_menu
 # Image inference settings
 # =========================
 # Most TF/Keras models with Inception/Xception backbones use [-1, 1] normalization.
-IMG_PREPROCESS = "minus1_to1"   # options: "minus1_to1" or "zero_to_one"
+IMG_PREPROCESS = "zero_to_one"   # options: "minus1_to1" or "zero_to_one"
 # Which index in a 2-class output corresponds to the Positive (disease) class?
 IMG_POSITIVE_INDEX = 1          # set to 0 if your model's positive class is index 0
-
+# Debug flag for printing raw probabilities in Streamlit
+DEBUG_IMG = True
 # ---------------------------
 # Logging
 # ---------------------------
@@ -196,59 +197,57 @@ def load_image_model():
 def _prepare_image_for_model(img: Image.Image, model):
     """Resize & normalize image according to model input shape and IMG_PREPROCESS."""
     try:
-        _, H, W, C = model.input_shape  # NHWC
+        _, H, W, C = model.input_shape
     except Exception:
         H, W, C = 299, 299, 3
 
-    # Ensure expected channel count
     img = img.convert("L" if C == 1 else "RGB")
+    # BEFORE: center-crop (can change content)
+    # img = ImageOps.fit(img, (W, H), Image.LANCZOS)
 
-    # Resize (center-crop style)
-    img = ImageOps.fit(img, (W, H), Image.LANCZOS)
+    # AFTER: match training (resize only)
+    img = img.resize((W, H), Image.BILINEAR)
 
     x = np.asarray(img, dtype=np.float32)
     if C == 1 and x.ndim == 2:
         x = x[..., np.newaxis]
 
-    # ---- normalization (critical!) ----
-    if IMG_PREPROCESS == "minus1_to1":
-        x = (x / 255.0) * 2.0 - 1.0
-    else:  # "zero_to_one"
+    if IMG_PREPROCESS == "zero_to_one":
         x = x / 255.0
+    else:
+        x = (x / 255.0) * 2.0 - 1.0
 
-    return np.expand_dims(x, axis=0)  # (1, H, W, C)
+    return np.expand_dims(x, axis=0)
 
 def predict_class(img, model=None):
     """
-    Predict from image. Returns (prob_positive, raw_pred_array).
-    Respects IMG_PREPROCESS and IMG_POSITIVE_INDEX.
+    Returns (probs, raw_pred).
+    - probs: 1D np.array of length n_classes, sums to 1.
+    - raw_pred: original model output (for debugging).
     """
     # Demo fallback
     if not TENSORFLOW_AVAILABLE or model is None:
         arr = np.array(img.convert("RGB"))
-        pred_value = float(np.clip(np.mean(arr)/255.0, 0.0, 1.0)) * 0.4 + 0.3  # ~[0.3,0.7]
-        return pred_value, np.array([[1.0 - pred_value, pred_value]], dtype=np.float32)
+        pred_value = float(np.clip(np.mean(arr)/255.0, 0.0, 1.0)) * 0.4 + 0.3
+        # Simulate a 2-class model in fallback
+        return np.array([1.0 - pred_value, pred_value], dtype=np.float32), None
 
     try:
         x = _prepare_image_for_model(img, model)
-        pred = model.predict(x, verbose=0)
+        raw = model.predict(x, verbose=0)
 
-        # (1,1) sigmoid OR (1,2) two-class
-        if pred.ndim == 2 and pred.shape[1] == 1:
-            prob_pos = float(pred[0, 0])  # sigmoid already P(positive)
-        elif pred.ndim == 2 and pred.shape[1] == 2:
-            p = pred[0]
-            # If looks like logits, softmax it
-            if not (np.all(p >= 0) and np.all(p <= 1) and np.isclose(p.sum(), 1.0, atol=1e-3)):
-                e = np.exp(p - np.max(p))
-                p = e / e.sum()
-            prob_pos = float(p[IMG_POSITIVE_INDEX])
-        else:
-            # Unexpected shape: use last value as logit
-            z = float(pred.flatten()[-1])
-            prob_pos = 1.0 / (1.0 + np.exp(-z))
+        # Normalize to probabilities cleanly for any output shape
+        if raw.ndim == 2:              # (1, C)
+            p = raw[0].astype(np.float64)
+        else:                           # any other shape → flatten to (C,)
+            p = raw.flatten().astype(np.float64)
 
-        return prob_pos, pred
+        # If not a proper prob vector, softmax it
+        if (np.any(p < 0) or np.any(p > 1)) or (not np.isclose(p.sum(), 1.0, atol=1e-3)):
+            exp = np.exp(p - np.max(p))
+            p = exp / exp.sum()
+
+        return p.astype(np.float32), raw
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}", exc_info=True)
         return None, None
@@ -379,39 +378,74 @@ def display_image_prediction_page():
                     test_image = Image.open(file)
                     st.image(test_image, caption="Uploaded Image", width=400)
 
-                    prob_pos, raw = predict_class(test_image, model)
-                    if prob_pos is not None:
-                        result = 'Positive' if prob_pos >= 0.5 else 'Negative'
-                        confidence = prob_pos if result == 'Positive' else (1.0 - prob_pos)
+                    probs, raw = predict_class(test_image, model)
+                    if probs is not None:
+                        n_classes = len(probs)
+                        class_idx = int(np.argmax(probs))
+                        is_positive = (class_idx == IMG_POSITIVE_INDEX)
+                        confidence = float(probs[class_idx])
 
+                        # ---- Debug block (optional but helpful) ----
+                        with st.expander("🔎 Model output (debug)"):
+                            if raw is not None:
+                                try:
+                                    import pandas as pd
+                                    st.write("Raw model output:")
+                                    st.dataframe(pd.DataFrame(raw))
+                                except Exception:
+                                    st.write(raw)
+                            st.write("→ probs:", probs)
+                            st.write("sum =", float(np.sum(probs)))
+                            st.write("argmax =", class_idx, " | positive_index =", IMG_POSITIVE_INDEX)
+
+                        # ---- Human-friendly label ----
                         st.subheader("Prediction Result")
-                        if result == 'Positive':
+                        if is_positive:
                             st.error("#### Cardiovascular Disease Detected")
                             risk_status = "High Risk"
                         else:
                             st.success("#### No Cardiovascular Disease Detected")
                             risk_status = "Low Risk"
 
-                        st.write(f"Prediction: {result}")
+                        st.write(f"Prediction: {'Positive' if is_positive else 'Negative'}")
                         st.write(f"Confidence: {confidence*100:.2f}%")
                         st.write(f"Risk Status: {risk_status}")
 
-                        # Optional probability bars
-                        neg = 1.0 - prob_pos
+                        # ---- Plot probabilities ----
                         fig, ax = plt.subplots(figsize=(8, 3))
-                        bars = ax.bar(['Negative', 'Positive'], [neg, prob_pos])
-                        for b in bars:
-                            ax.text(b.get_x() + b.get_width()/2, b.get_height(),
-                                    f'{b.get_height()*100:.1f}%', ha='center', va='bottom')
+                        if n_classes == 2:
+                            labels = ["Negative", "Positive"]
+                            ax.bar(labels, [float(probs[0]), float(probs[1])])
+                            for i, v in enumerate([float(probs[0]), float(probs[1])]):
+                                ax.text(i, v, f"{v*100:.1f}%", ha='center', va='bottom')
+                        else:
+                            # Generic labels if you don’t have class names baked in
+                            labels = [f"Class {i}" for i in range(n_classes)]
+                            bars = ax.bar(labels, [float(p) for p in probs])
+                            for i, b in enumerate(bars):
+                                ax.text(
+                                    b.get_x() + b.get_width()/2, b.get_height(),
+                                    f"{float(probs[i])*100:.1f}%", ha='center', va='bottom'
+                                )
+
+                            # Mark which index is considered “Positive”
+                            try:
+                                ax.get_children()[IMG_POSITIVE_INDEX].set_hatch('//')
+                            except Exception:
+                                pass
+
                         ax.set_ylim(0, 1.0)
                         ax.set_ylabel('Probability')
                         ax.set_title('Prediction Probabilities')
                         st.pyplot(fig)
                     else:
                         st.error("❌ Failed to process the image. The model could not generate a prediction.")
+
             except Exception as e:
                 st.error(f"❌ Error processing the image: {str(e)}")
                 logger.error(f"Image processing error: {str(e)}")
+        else:
+            st.info("Please upload an image to start prediction.")
 
 # ---------------------------
 # Main
@@ -457,3 +491,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
